@@ -1,0 +1,157 @@
+import os
+import time
+import logging
+import threading
+import requests
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
+from enum import Enum
+
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("model_refusal_service")
+
+# Initialize FastAPI app
+app = FastAPI(
+    title="Model Refusal Detection Service",
+    version="1.0.0",
+    description="Detects if a text contains a model refusal message."
+)
+
+# Define enums and response models
+class ActualValueDtype(str, Enum):
+    FLOAT = "float"
+
+class EvaluationType(str, Enum):
+    MODEL_REFUSAL = "model_refusal_evaluation"
+
+class RefusalRequest(BaseModel):
+    text: str
+
+class RefusalResponse(BaseModel):
+    metric_name: EvaluationType
+    actual_value: float
+    actual_value_type: ActualValueDtype
+    others: dict = {}
+
+# Global variables for model state
+classifier = None
+model_ready = False
+
+# ------------------- Background Services -------------------
+def background_ping():
+    """
+    Background service to ping the API endpoint periodically.
+    Uses configurable environment variables for flexibility.
+    """
+    # Get configuration from environment variables
+    ping_url = os.getenv("PING_URL")
+    ping_interval = int(os.getenv("PING_INTERVAL_SECONDS", "300"))  # Default: 5 minutes
+    api_key = os.getenv("PING_API_KEY")  # Optional API key for gateway
+    
+    if not ping_url:
+        logger.warning("PING_URL not configured, skipping ping service")
+        return
+    
+    # Default payload for refusal detection - configurable via environment
+    payload = {
+        "text": os.getenv("PING_TEXT", "I apologize, but I cannot assist with that request.")
+    }
+    
+    # Set up headers
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["x-api-key"] = api_key
+    
+    logger.info(f"Starting ping service: URL={ping_url}, interval={ping_interval}s")
+    
+    while True:
+        try:
+            if model_ready:  # Only ping when model is ready
+                logger.info(f"Pinging endpoint: {ping_url}")
+                response = requests.post(ping_url, json=payload, headers=headers, timeout=30)
+                
+                if response.status_code == 200:
+                    logger.info(f"Ping successful: {response.status_code}")
+                else:
+                    logger.warning(f"Ping returned non-200 status: {response.status_code}")
+            else:
+                logger.info("Model not ready, skipping ping")
+                
+        except Exception as e:
+            logger.warning(f"Ping failed: {e}")
+            
+        time.sleep(ping_interval)
+
+# Load model and tokenizer at startup
+@app.on_event("startup")
+async def load_model():
+    global classifier, model_ready
+    try:
+        model_dir = "/app/model_cache"
+        tokenizer = AutoTokenizer.from_pretrained(model_dir)
+        model = AutoModelForSequenceClassification.from_pretrained(model_dir)
+        classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
+        model_ready = True
+        logger.info("Model loaded successfully.")
+    except Exception as e:
+        logger.error(f"Error loading model: {e}")
+        classifier = None
+        model_ready = False
+    
+    # Start background ping service if enabled
+    if os.getenv("ENABLE_PING", "false").lower() == "true":
+        threading.Thread(target=background_ping, daemon=True).start()
+        logger.info("Background ping service started")
+
+# Health check endpoint
+@app.get("/health")
+def health_check():
+    if classifier:
+        return {"status": "ok"}
+    else:
+        return {"status": "error", "message": "Model not loaded."}
+
+# Refusal detection endpoint
+@app.post("/detect/refusal", response_model=RefusalResponse)
+def detect_refusal(request: RefusalRequest):
+    if not classifier:
+        raise HTTPException(status_code=500, detail="Model not loaded.")
+
+    start_time = time.time()
+    try:
+        result = classifier(request.text)[0]
+        processing_time_ms = (time.time() - start_time) * 1000
+
+        label = result["label"]  # Case-sensitive label from model output
+        score = result["score"]
+
+        # Updated scoring logic with case-sensitive comparison
+        if label.upper() == "REJECTION":
+            rejection_score = score
+        else:
+            rejection_score = 1.0 - score
+
+        response = RefusalResponse(
+            metric_name=EvaluationType.MODEL_REFUSAL,
+            actual_value=float(rejection_score),
+            actual_value_type=ActualValueDtype.FLOAT,
+            others={
+                "processing_time_ms": processing_time_ms,
+                "text_length": len(request.text),
+                "model_label": label,
+                "model_raw_score": float(score),
+                "model_name": "ProtectAI/distilroberta-base-rejection-v1"
+            }
+        )
+        return response
+
+    except Exception as e:
+        logger.error(f"Inference error: {e}")
+        raise HTTPException(status_code=500, detail="Inference error.")
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", "8080"))
+    uvicorn.run(app, host="0.0.0.0", port=port) 

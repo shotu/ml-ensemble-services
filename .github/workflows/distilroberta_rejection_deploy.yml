@@ -1,0 +1,250 @@
+name: Deploy DistilRoBERTa Rejection Service to Google Cloud Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to deploy'
+        required: true
+        default: 'distilroberta-base-rejection-v1'
+        type: string
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+          - development
+      memory:
+        description: 'Memory allocation for Cloud Run service (in Gi)'
+        required: true
+        default: '1.5'
+        type: choice
+        options:
+          - '1'
+          - '1.5'
+          - '2'
+          - '4'
+          - '8'
+          - '16'
+          - '32'
+      cpu:
+        description: 'CPU allocation for Cloud Run service'
+        required: true
+        default: '1'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '4'
+          - '8'
+      min_instances:
+        description: 'Minimum number of instances'
+        required: true
+        default: '1'
+      max_instances:
+        description: 'Maximum number of instances'
+        required: true
+        default: '5'
+      concurrency:
+        description: 'Number of concurrent requests per instance'
+        required: true
+        default: '80'
+      timeout:
+        description: 'Request timeout in seconds'
+        required: true
+        default: '300'
+      public_access:
+        description: 'Allow unauthenticated access'
+        required: true
+        default: true
+        type: boolean
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ secrets.GCP_REGION }}
+  GITHUB_REPO: ${{ github.repository }}
+
+jobs:
+  deploy:
+    name: Deploy DistilRoBERTa Rejection Service to Cloud Run
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.inputs.environment }}
+      cancel-in-progress: false
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - id: 'auth'
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/1018792104281/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider-new
+          service_account: github-actions-service-account@atri-dev.iam.gserviceaccount.com
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for GCP Artifact Registry
+        run: |
+          gcloud auth configure-docker us-docker.pkg.dev
+
+      - name: Build and push Docker image
+        env:
+          SERVICE: ${{ github.event.inputs.service }}
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+        run: |
+          BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          COMMIT_SHA=$(git rev-parse HEAD)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          UNIQUE_TAG="${ENVIRONMENT}-${SHORT_SHA}-$(date +%s)"
+          IMAGE_NAME="us-docker.pkg.dev/${PROJECT_ID}/raime-ml/${SERVICE}"
+          
+          echo "Building Docker image for service: ${SERVICE}"
+          echo "Environment: ${ENVIRONMENT}"
+          echo "Unique tag: ${UNIQUE_TAG}"
+          
+          # Build Docker image without cache to avoid excess space usage
+          docker build \
+            --platform linux/amd64 \
+            --build-arg BUILD_DATE="${BUILD_DATE}" \
+            --build-arg VCS_REF="${COMMIT_SHA}" \
+            --build-arg VERSION="${UNIQUE_TAG}" \
+            --build-arg ENVIRONMENT="${ENVIRONMENT}" \
+            -t ${IMAGE_NAME}:${ENVIRONMENT} \
+            -t ${IMAGE_NAME}:${UNIQUE_TAG} \
+            -f services/${SERVICE}/Dockerfile services/${SERVICE}
+          
+          docker push ${IMAGE_NAME}:${ENVIRONMENT}
+          docker push ${IMAGE_NAME}:${UNIQUE_TAG}
+          
+          echo "IMAGE_URI=${IMAGE_NAME}:${ENVIRONMENT}" >> $GITHUB_ENV
+          echo "UNIQUE_TAG=${UNIQUE_TAG}" >> $GITHUB_ENV
+
+      - name: Clean up unused Docker images
+        run: |
+          docker system prune -f
+
+      - name: Deploy to Cloud Run
+        env:
+          SERVICE: ${{ github.event.inputs.service }}
+          MEMORY: ${{ github.event.inputs.memory }}
+          CPU: ${{ github.event.inputs.cpu }}
+          MIN_INSTANCES: ${{ github.event.inputs.min_instances }}
+          MAX_INSTANCES: ${{ github.event.inputs.max_instances }}
+          CONCURRENCY: ${{ github.event.inputs.concurrency }}
+          TIMEOUT: ${{ github.event.inputs.timeout }}
+          PUBLIC_ACCESS: ${{ github.event.inputs.public_access }}
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+        run: |
+          IMAGE_URI="us-docker.pkg.dev/${PROJECT_ID}/raime-ml/${SERVICE}:${ENVIRONMENT}"
+          echo "Deploying to Cloud Run: ${SERVICE}-${ENVIRONMENT}"
+          
+          # Set up ping configuration based on environment
+          if [ "${ENVIRONMENT}" = "production" ]; then
+            PING_URL="${{ secrets.REFUSAL_GATEWAY_URL_PROD }}"
+            # Production uses API gateway with authentication
+            ENV_VARS="ENVIRONMENT=${ENVIRONMENT},ENABLE_PING=true,PING_URL=${PING_URL},PING_INTERVAL_SECONDS=300,PING_API_KEY=${{ secrets.RAIME_ML_SERVICES_API_KEY }}"
+          else
+            # For non-production environments, use direct Cloud Run URL (no API key needed)
+            PING_URL="https://distilroberta-base-rejection-v1-${ENVIRONMENT}-drnc7zg5yq-uc.a.run.app/detect/refusal"
+            ENV_VARS="ENVIRONMENT=${ENVIRONMENT},ENABLE_PING=true,PING_URL=${PING_URL},PING_INTERVAL_SECONDS=300"
+          fi
+          
+          gcloud run deploy ${SERVICE}-${ENVIRONMENT} \
+            --image ${IMAGE_URI} \
+            --platform managed \
+            --region ${REGION} \
+            --memory ${MEMORY}Gi \
+            --cpu ${CPU} \
+            --min-instances ${MIN_INSTANCES} \
+            --max-instances ${MAX_INSTANCES} \
+            --concurrency ${CONCURRENCY} \
+            --timeout ${TIMEOUT}s \
+            --cpu-boost \
+            --set-env-vars "${ENV_VARS}" \
+            --labels "env=${ENVIRONMENT},commit_sha=${GITHUB_SHA},tag=${UNIQUE_TAG}" \
+            ${{ github.event.inputs.public_access == 'true' && '--allow-unauthenticated' || '--no-allow-unauthenticated' }}
+          
+          SERVICE_URL=$(gcloud run services describe ${SERVICE}-${ENVIRONMENT} --platform managed --region ${REGION} --format="value(status.url)")
+          echo "Deployed service URL: ${SERVICE_URL}"
+          echo "SERVICE_URL=${SERVICE_URL}" >> $GITHUB_ENV
+
+      - name: Configure IAM policy for public access
+        if: ${{ github.event.inputs.public_access == 'true' }}
+        env:
+          SERVICE: ${{ github.event.inputs.service }}
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+        run: |
+          gcloud run services add-iam-policy-binding ${SERVICE}-${ENVIRONMENT} \
+            --region=${REGION} \
+            --member="allUsers" \
+            --role="roles/run.invoker"
+
+      - name: Test Deployment
+        run: |
+          echo "Testing deployment health endpoint..."
+          
+          MAX_RETRIES=5
+          RETRY_COUNT=0
+          HTTP_STATUS=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ $HTTP_STATUS -ne 200 ]; do
+            echo "Attempt $((RETRY_COUNT+1)) of ${MAX_RETRIES}..."
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${SERVICE_URL}/health || echo "failed")
+            
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "Health check successful!"
+              break
+            else
+              echo "Health check returned status: $HTTP_STATUS"
+              RETRY_COUNT=$((RETRY_COUNT+1))
+              echo "Waiting 10 seconds before next attempt..."
+              sleep 10
+            fi
+          done
+          
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Health check failed after ${MAX_RETRIES} attempts."
+            exit 1
+          fi
+
+      - name: Create deployment record
+        env:
+          SERVICE: ${{ github.event.inputs.service }}
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+        run: |
+          DEPLOY_INFO=$(cat << EOF
+          {
+            "service": "${SERVICE}",
+            "environment": "${ENVIRONMENT}",
+            "region": "${REGION}",
+            "image": "us-docker.pkg.dev/${PROJECT_ID}/raime-ml/${SERVICE}:${ENVIRONMENT}",
+            "url": "${SERVICE_URL}",
+            "deployed_at": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+            "deployed_by": "${{ github.actor }}",
+            "github_sha": "${{ github.sha }}",
+            "github_ref": "${{ github.ref }}",
+            "github_workflow": "${{ github.workflow }}"
+          }
+          EOF
+          )
+          
+          echo "$DEPLOY_INFO" > deployment-${SERVICE}-${ENVIRONMENT}.json
+          echo "Deployment record created:"
+          cat deployment-${SERVICE}-${ENVIRONMENT}.json
+
+      - name: Upload deployment record
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-record
+          path: deployment-*.json 

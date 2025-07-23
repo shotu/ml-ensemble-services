@@ -1,0 +1,4383 @@
+swagger: '2.0'
+info:
+  title: atri RAIME ML Services API
+  description: API Gateway for RAIME ML Services
+  version: 1.0.0
+x-google-backend:
+  address: https://similarity-production-1018792104281.us-central1.run.app
+  path_translation: CONSTANT_ADDRESS
+  protocol: h2
+  deadline: 30.0
+schemes:
+  - https
+produces:
+  - application/json
+consumes:
+  - application/json
+securityDefinitions:
+  api_key:
+    type: apiKey
+    name: x-api-key
+    in: header
+    description: API Key for authentication
+  firebase_auth:
+    type: oauth2
+    flow: implicit
+    authorizationUrl: https://securetoken.google.com/atri-dev
+    x-google-issuer: "https://securetoken.google.com/atri-dev"
+    x-google-jwks_uri: "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
+    x-google-audiences: "atri-dev"
+x-google-management:
+  metrics:
+    - name: "requests"
+      displayName: "Requests"
+      valueType: INT64
+      metricKind: DELTA
+  quota:
+    limits:
+      - name: "requests-per-minute"
+        metric: "requests"
+        unit: "1/min/{project}"
+        values:
+          STANDARD: 10000
+definitions:
+  HealthResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        description: Service health status
+  SimilarityRequest:
+    type: object
+    required:
+      - sources
+      - targets
+    properties:
+      sources:
+        type: array
+        items:
+          type: string
+        description: List of source texts to compare
+      targets:
+        type: array
+        items:
+          type: string
+        description: List of target texts to compare
+      model_name:
+        type: string
+        default: "all-MiniLM-L6-v2"
+        description: Name of the model to use
+      params:
+        type: object
+        description: Additional parameters for the model
+  PairSimilarity:
+    type: object
+    properties:
+      source:
+        type: string
+        description: Source text
+      target:
+        type: string
+        description: Target text
+      similarity:
+        type: number
+        format: float
+        description: Similarity score between source and target
+  SimilarityResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the similarity metric used
+      similarities:
+        type: array
+        items:
+          type: array
+          items:
+            type: number
+            format: float
+        description: Matrix of similarity scores
+      pairs:
+        type: array
+        items:
+          $ref: '#/definitions/PairSimilarity'
+        description: List of source-target pairs with similarity scores
+      diagnostics:
+        type: object
+        properties:
+          num_sources:
+            type: integer
+            description: Number of source texts
+          num_targets:
+            type: integer
+            description: Number of target texts
+      model_info:
+        type: object
+        properties:
+          model_name:
+            type: string
+            description: Name of the model used
+          model_version:
+            type: string
+            description: Version of the model
+          compute_time_ms:
+            type: number
+            format: float
+            description: Computation time in milliseconds
+  BiasRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: Input text to analyze for bias
+  BiasResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (bias_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The bias score value (0.0 to 1.0)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information including processing time and model details
+        properties:
+          processing_time_ms:
+            type: number
+            format: float
+            description: Processing time in milliseconds
+          text_length:
+            type: integer
+            description: Length of the input text
+          model_label:
+            type: string
+            description: Original model classification (LABEL_0 or LABEL_1)
+          model_raw_score:
+            type: number
+            format: float
+            description: Raw confidence score from the model
+          model_name:
+            type: string
+            description: Name of the model used for classification
+  BleuScoreRequest:
+    type: object
+    required:
+      - references
+      - predictions
+    properties:
+      references:
+        type: array
+        items:
+          type: string
+        description: List of reference texts
+      predictions:
+        type: array
+        items:
+          type: string
+        description: List of predicted texts to compare against references
+  BleuScoreResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (bleu_score_evaluation)
+      actual_score:
+        type: number
+        format: float
+        description: BLEU score between 0 and 1
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information
+  LongformerRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: Input text to analyze for coherence
+  LongformerResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (coherence_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The coherence score value
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information including raw_label, raw_score, and inference_time_ms
+  CompressionScoreRequest:
+    type: object
+    required:
+      - references
+      - predictions
+    properties:
+      references:
+        type: array
+        items:
+          type: string
+        description: List of reference texts
+      predictions:
+        type: array
+        items:
+          type: string
+        description: List of predicted texts to compare against references
+  CompressionScoreResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (compression_score_evaluation)
+      actual_score:
+        type: number
+        format: float
+        description: Compression score between 0 and infinity
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information
+  CosineSimilarityRequest:
+    type: object
+    required:
+      - references
+      - predictions
+    properties:
+      references:
+        type: array
+        items:
+          type: string
+        description: List of reference texts
+      predictions:
+        type: array
+        items:
+          type: string
+        description: List of predicted texts to compare against references
+  CosineSimilarityResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (cosine_similarity_evaluation)
+      actual_score:
+        type: number
+        format: float
+        description: Cosine similarity score between -1 and 1
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information
+  FuzzyScoreRequest:
+    type: object
+    required:
+      - references
+      - predictions
+    properties:
+      references:
+        type: array
+        items:
+          type: string
+        description: List of reference texts
+      predictions:
+        type: array
+        items:
+          type: string
+        description: List of predicted texts to compare against references
+  FuzzyScoreResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (fuzzy_score_evaluation)
+      actual_score:
+        type: number
+        format: float
+        description: Fuzzy score between 0 and 1
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information
+  ToxicityRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: The text content to analyze for toxicity
+  ToxicityResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (toxicity_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The toxicity score value
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information such as processing time
+        properties:
+          processing_time:
+            type: number
+            format: float
+            description: Computation time in milliseconds
+  HateSpeechRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: The text content to analyze for hate speech
+  HateSpeechResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (hate_speech_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The hate speech score value
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information such as processing time and detailed scores
+        properties:
+          processing_time_ms:
+            type: number
+            format: float
+            description: Computation time in milliseconds
+  SexualContentRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: The text content to analyze for sexual content
+  SexualContentResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (sexual_content_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The sexual content score value
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information such as processing time and detailed scores
+        properties:
+          processing_time_ms:
+            type: number
+            format: float
+            description: Computation time in milliseconds
+  TerrorismRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: The text content to analyze for terrorism content
+  TerrorismResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (terrorism_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The terrorism content score value
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information such as processing time and detailed scores
+        properties:
+          processing_time_ms:
+            type: number
+            format: float
+            description: Computation time in milliseconds
+  ViolenceRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: The text content to analyze for violence content
+  ViolenceResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (violence_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The violence content score value
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information such as processing time and detailed scores
+        properties:
+          processing_time_ms:
+            type: number
+            format: float
+            description: Computation time in milliseconds
+  SelfHarmRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: The text content to analyze for self-harm content
+  SelfHarmResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (self_harm_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The self-harm content score value
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information such as processing time and detailed scores
+        properties:
+          processing_time_ms:
+            type: number
+            format: float
+            description: Computation time in milliseconds
+  NSFWRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: The text content to analyze for NSFW content
+  NSFWResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (nsfw_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The NSFW detection score (0.0 to 1.0)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information including processing time and model details
+        properties:
+          processing_time_ms:
+            type: number
+            format: float
+            description: Processing time in milliseconds
+          text_length:
+            type: integer
+            description: Length of the input text
+          model_label:
+            type: string
+            description: Original model classification (SAFE or NSFW)
+          model_raw_score:
+            type: number
+            format: float
+            description: Raw confidence score from the model
+          model_name:
+            type: string
+            description: Name of the model used for classification
+  RefusalRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: The text content to analyze for refusal/rejection patterns
+  RefusalResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (model_refusal_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The refusal detection score (0.0 to 1.0)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information including processing time and model details
+        properties:
+          processing_time_ms:
+            type: number
+            format: float
+            description: Processing time in milliseconds
+          text_length:
+            type: integer
+            description: Length of the input text
+          model_label:
+            type: string
+            description: Original model classification (REJECTION or NORMAL)
+          model_raw_score:
+            type: number
+            format: float
+            description: Raw confidence score from the model
+          model_name:
+            type: string
+            description: Name of the model used for classification
+  CreativityRequest:
+    type: object
+    required:
+      - context
+      - response
+    properties:
+      context:
+        type: string
+        description: The context text for comparison
+      response:
+        type: string
+        description: The response text to evaluate
+  CreativityResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (creativity_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The creativity score value
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float, int, string)
+      relevance_score:
+        type: number
+        format: float
+        description: The relevance score between context and response
+      novelty_score:
+        type: number
+        format: float
+        description: The novelty score measuring creative deviation
+      others:
+        type: object
+        description: Additional information about creativity metrics
+  BertweetRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: The text content to analyze for tone/sentiment
+  BertweetResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (response_tone_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The response tone score value (0.0 to 1.0)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information including inference time, text length, and tone details
+        properties:
+          inference_time_ms:
+            type: number
+            format: float
+            description: Processing time in milliseconds
+          text_length:
+            type: integer
+            description: Length of the input text
+          raw_label:
+            type: string
+            description: Raw sentiment label from the model (POS, NEG, NEU)
+          raw_score:
+            type: number
+            format: float
+            description: Raw confidence score from the model
+  AnswerRelevanceRequest:
+    type: object
+    required:
+      - input_text
+      - output_text
+    properties:
+      input_text:
+        type: string
+        description: The input text to analyze
+      output_text:
+        type: string
+        description: The output text to compare against the input
+  AnswerRelevanceResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (deberta_v3_large_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The relationship score between input and output texts
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        properties:
+          processing_time_ms:
+            type: number
+            format: float
+            description: Processing time in milliseconds
+          input_text_length:
+            type: integer
+            description: Length of the input text
+          output_text_length:
+            type: integer
+            description: Length of the output text
+          model_name:
+            type: string
+            description: Name of the DeBERTa model used
+        description: Additional information including processing time and text lengths
+  ConceptualSimilarityRequest:
+    type: object
+    required:
+      - text1
+      - text2
+    properties:
+      text1:
+        type: string
+        description: The first text to compare
+      text2:
+        type: string
+        description: The second text to compare
+  ConceptualSimilarityResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (sentence_similarity_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The semantic similarity score value (0.0 to 1.0)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        properties:
+          processing_time_ms:
+            type: number
+            format: float
+            description: Processing time in milliseconds
+          text1_length:
+            type: integer
+            description: Length of the first text
+          text2_length:
+            type: integer
+            description: Length of the second text
+          model_name:
+            type: string
+            description: Name of the sentence transformer model used
+        description: Additional information including processing time and text lengths
+  FactualConsistencyRequest:
+    type: object
+    required:
+      - text
+      - context
+    properties:
+      text:
+        type: string
+        description: The text that needs to be evaluated for factual consistency
+      context:
+        type: string
+        description: The context against which the text should be evaluated
+  FlanT5Request:
+    type: object
+    properties:
+      text:
+        type: string
+        description: The text to be evaluated for factual consistency
+  FlanT5Response:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (factual_consistency_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The factual consistency score value (0.0 to 1.0)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        properties:
+          inference_time_ms:
+            type: number
+            format: float
+            description: Processing time in milliseconds
+          text_length:
+            type: integer
+            description: Length of the input text
+          context_length:
+            type: integer
+            description: Length of the input context
+        description: Additional information including processing time and text lengths
+  DataLeakageRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: The text content that needs to be analyzed for personal information
+  DataLeakageResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (data_leakage_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The data leakage detection score (0.0 to 1.0)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        properties:
+          inference_time_ms:
+            type: number
+            format: float
+            description: Processing time in milliseconds
+          detected_entities:
+            type: array
+            items:
+              type: object
+              properties:
+                word:
+                  type: string
+                  description: The detected word/token
+                label:
+                  type: string
+                  description: The entity label (e.g., I-EMAIL, I-TELEPHONENUM, I-SOCIALNUM)
+                confidence:
+                  type: number
+                  format: float
+                  description: Confidence score for the detection
+                start:
+                  type: integer
+                  description: Start position in the text
+                end:
+                  type: integer
+                  description: End position in the text
+            description: List of detected personal information entities
+          num_entities:
+            type: integer
+            description: Number of detected entities
+          entity_types_detected:
+            type: array
+            items:
+              type: string
+            description: List of unique entity types found (e.g., EMAIL, TELEPHONENUM, SOCIALNUM)
+          model_entities:
+            type: integer
+            description: Number of entities detected by the ML model
+          regex_entities:
+            type: integer
+            description: Number of entities detected by regex patterns
+          text_word_count:
+            type: integer
+            description: Number of words in the input text
+        description: Additional information including detected entities, processing time, and metadata
+  PromptInjectionRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: The text to analyze for prompt injection attempts
+  PromptInjectionResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (deberta_v3_base_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The prompt injection detection score (0.0 to 1.0)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information including processing time and model details
+        properties:
+          processing_time_ms:
+            type: number
+            format: float
+            description: Processing time in milliseconds
+          text_length:
+            type: integer
+            description: Length of the input text
+          model_label:
+            type: string
+            description: Original model classification (INJECTION or NO_INJECTION)
+          model_raw_score:
+            type: number
+            format: float
+            description: Raw confidence score from the model
+          model_name:
+            type: string
+            description: Name of the model used for classification
+  GrammarRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: The text to evaluate for grammatical correctness
+  GrammarResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (grammatical_correctness_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The grammatical correctness score value (0-1)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information including inference time, text length, and correction details
+        properties:
+          inference_time_ms:
+            type: number
+            format: float
+            description: Processing time in milliseconds
+          text_length:
+            type: integer
+            description: Length of the input text
+          correction_details:
+            type: object
+            description: Detailed analysis of corrections made
+  DiversityRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: Input text to analyze for diversity
+  DiversityResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+      actual_score:
+        type: number
+        format: float
+      token_count:
+        type: integer
+      unique_token_count:
+        type: integer
+      processing_time:
+        type: number
+        format: float
+      raw_score:
+        type: number
+        format: float
+  ReadabilityRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: Input text to analyze for readability
+  ReadabilityResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+      actual_score:
+        type: number
+        format: float
+      processing_time:
+        type: number
+        format: float
+  ClarityRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: Input text to analyze for clarity
+  ClarityResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+      actual_score:
+        type: number
+        format: float
+      token_count:
+        type: integer
+      readability_score:
+        type: number
+        format: float
+      conciseness_score:
+        type: number
+        format: float
+      diversity_score:
+        type: number
+        format: float
+      processing_time:
+        type: number
+        format: float
+  InvisibleTextRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: Input text to analyze for invisible characters
+  InvisibleTextResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+      actual_score:
+        type: number
+        format: float
+      detected_chars:
+        type: array
+        items:
+          type: object
+          properties:
+            code:
+              type: string
+            category:
+              type: string
+            position:
+              type: integer
+            name:
+              type: string
+      explanation:
+        type: string
+      processing_time:
+        type: number
+        format: float
+  InsecureOutputRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: Input text to analyze for insecure output patterns
+  InsecureOutputResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+      actual_score:
+        type: number
+        format: float
+      max_score:
+        type: number
+        format: float
+      processing_time:
+        type: number
+        format: float
+  RougeScoreRequest:
+    type: object
+    properties:
+      references:
+        type: array
+        items:
+          type: string
+      predictions:
+        type: array
+        items:
+          type: string
+    required:
+      - references
+      - predictions
+  RougeScoreResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+      actual_score:
+        type: number
+      actual_value_type:
+        type: string
+      others:
+        type: object
+    required:
+      - metric_name
+      - actual_score
+      - actual_value_type
+      - others
+  MeteorScoreRequest:
+    type: object
+    properties:
+      references:
+        type: array
+        items:
+          type: string
+        description: List of reference texts
+      predictions:
+        type: array
+        items:
+          type: string
+        description: List of predicted texts to compare against references
+    required:
+      - references
+      - predictions
+  MeteorScoreResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (meteor_score_evaluation)
+      actual_score:
+        type: number
+        format: float
+        description: METEOR score between 0 and 1
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information including processing time
+        properties:
+          processing_time:
+            type: number
+            format: float
+            description: Processing time in seconds
+    required:
+      - metric_name
+      - actual_score
+      - actual_value_type
+      - others
+  SentenceTokenizeRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: Input text to tokenize into sentences
+  SentenceTokenizeResponse:
+    type: object
+    properties:
+      sentences:
+        type: array
+        items:
+          type: string
+        description: List of tokenized sentences
+      sentence_count:
+        type: integer
+        description: Number of sentences found
+      processing_time_ms:
+        type: number
+        format: float
+        description: Processing time in milliseconds
+    required:
+      - sentences
+      - sentence_count
+      - processing_time_ms
+  NarrativeFlowRequest:
+    type: object
+    required:
+      - text
+      - sentences
+    properties:
+      text:
+        type: string
+        description: Full text to analyze for narrative flow
+      sentences:
+        type: array
+        items:
+          type: string
+        description: List of sentences from the text
+  ConnectorAnalysis:
+    type: object
+    properties:
+      causal_connectors:
+        type: integer
+        description: Number of causal connectors found
+      contrast_connectors:
+        type: integer
+        description: Number of contrast connectors found
+      additive_connectors:
+        type: integer
+        description: Number of additive connectors found
+      sequential_connectors:
+        type: integer
+        description: Number of sequential connectors found
+      reason_connectors:
+        type: integer
+        description: Number of reason connectors found
+      exemplification_connectors:
+        type: integer
+        description: Number of exemplification connectors found
+      conclusive_connectors:
+        type: integer
+        description: Number of conclusive connectors found
+      variety_score:
+        type: number
+        format: float
+        description: Variety score of connectors (0-1)
+      total_connectors:
+        type: integer
+        description: Total number of connectors found
+    required:
+      - causal_connectors
+      - contrast_connectors
+      - additive_connectors
+      - sequential_connectors
+      - reason_connectors
+      - exemplification_connectors
+      - conclusive_connectors
+      - variety_score
+      - total_connectors
+  BreakTypes:
+    type: object
+    properties:
+      temporal_inconsistency:
+        type: boolean
+        description: Whether temporal inconsistency was detected
+      perspective_shift:
+        type: boolean
+        description: Whether perspective shift was detected
+      logical_contradiction:
+        type: boolean
+        description: Whether logical contradiction was detected
+    required:
+      - temporal_inconsistency
+      - perspective_shift
+      - logical_contradiction
+  NarrativeFlowResponse:
+    type: object
+    properties:
+      logical_flow_score:
+        type: number
+        format: float
+        description: Overall logical flow score (0-1)
+      narrative_breaks:
+        type: array
+        items:
+          type: string
+        description: List of narrative breaks detected
+      break_types:
+        $ref: '#/definitions/BreakTypes'
+        description: Types of narrative breaks detected
+      connector_analysis:
+        $ref: '#/definitions/ConnectorAnalysis'
+        description: Analysis of logical connectors
+      processing_time_ms:
+        type: number
+        format: float
+        description: Processing time in milliseconds
+    required:
+      - logical_flow_score
+      - narrative_breaks
+      - break_types
+      - connector_analysis
+      - processing_time_ms
+  RAGMetricsRequest:
+    type: object
+    required:
+      - llm_input_query
+      - llm_input_context
+      - llm_output
+    properties:
+      llm_input_query:
+        type: string
+        description: The query/question that was asked to the LLM
+      llm_input_context:
+        type: string
+        description: The context provided to the LLM for answering the query
+      llm_output:
+        type: string
+        description: The response/output generated by the LLM
+  RAGMetricsResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the RAG evaluation metric
+      actual_value:
+        type: number
+        format: float
+        description: The RAG metric score value (0.0 to 1.0)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information including processing time and model details
+        properties:
+          processing_time_ms:
+            type: number
+            format: float
+            description: Processing time in milliseconds
+          input_lengths:
+            type: object
+            properties:
+              query_length:
+                type: integer
+                description: Length of the input query
+              context_length:
+                type: integer
+                description: Length of the input context
+              response_length:
+                type: integer
+                description: Length of the LLM response
+          model_name:
+            type: string
+            description: Name of the model used for evaluation
+          evaluation_method:
+            type: string
+            description: Method used for evaluation
+  FaithfulnessRequest:
+    type: object
+    required:
+      - llm_input_query
+      - llm_input_context
+      - llm_output
+    properties:
+      llm_input_query:
+        type: string
+        description: The query/question that was asked to the LLM
+      llm_input_context:
+        type: string
+        description: The context provided to the LLM for answering the query
+      llm_output:
+        type: string
+        description: The response/output generated by the LLM
+  FaithfulnessResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the faithfulness evaluation metric
+      actual_value:
+        type: number
+        format: float
+        description: The faithfulness score value (0.0 to 1.0)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information including processing time and model details
+        properties:
+          processing_time_ms:
+            type: number
+            format: float
+            description: Processing time in milliseconds
+          entailment_probability:
+            type: number
+            format: float
+            description: Probability of entailment
+          contradiction_probability:
+            type: number
+            format: float
+            description: Probability of contradiction
+          neutral_probability:
+            type: number
+            format: float
+            description: Probability of neutral
+          predicted_label:
+            type: string
+            description: Predicted label (entailment, contradiction, neutral)
+          claims_analyzed:
+            type: integer
+            description: Number of claims analyzed
+          average_claim_score:
+            type: number
+            format: float
+            description: Average score across all claims
+          claim_details:
+            type: array
+            items:
+              type: object
+              properties:
+                claim:
+                  type: string
+                  description: The claim being evaluated
+                entailment_prob:
+                  type: number
+                  format: float
+                  description: Entailment probability for this claim
+                predicted_label:
+                  type: string
+                  description: Predicted label for this claim
+            description: Details for each claim analyzed
+          contradiction_detected:
+            type: boolean
+            description: Whether contradiction was detected
+          evidence_support:
+            type: string
+            description: Level of evidence support (weak, moderate, strong)
+          input_lengths:
+            type: object
+            properties:
+              query_length:
+                type: integer
+                description: Length of the input query
+              context_length:
+                type: integer
+                description: Length of the input context
+              response_length:
+                type: integer
+                description: Length of the LLM response
+          model_name:
+            type: string
+            description: Name of the model used for evaluation
+          evaluation_method:
+            type: string
+            description: Method used for evaluation
+  AgenticMetricsRequest:
+    type: object
+    properties:
+      conversation_history:
+        type: array
+        items:
+          type: string
+        description: List of conversation messages (user/agent turns)
+      tool_calls:
+        type: array
+        items:
+          type: object
+        description: List of tool call objects (name, args, result, etc)
+      agent_responses:
+        type: array
+        items:
+          type: string
+        description: List of agent responses
+      reference_data:
+        type: object
+        description: Reference data for evaluation (expected_tool_calls, target_goal, etc)
+    required:
+      - conversation_history
+      - tool_calls
+      - agent_responses
+      - reference_data
+  MetricReturnModel:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric
+      actual_value:
+        type: number
+        format: float
+        description: The metric score value (0.0 to 1.0)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information (processing time, details, etc)
+  TokenBloatDoSRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: Input text to analyze for token bloat/DoS risk
+      max_output_length:
+        type: integer
+        description: Maximum allowed output length, default 512
+      expected_ratio:
+        type: number
+        format: float
+        description: Expected output/input ratio, default 3.0
+  TokenBloatDoSResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (token_bloat_dos_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The token bloat/DoS risk score value (0.0 to 1.0)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information including processing time and analysis details
+        properties:
+          explanation:
+            type: string
+            description: Human-readable explanation of the risk assessment
+          risk_level:
+            type: string
+            description: Risk level classification (NEGLIGIBLE, LOW, MEDIUM, HIGH, CRITICAL)
+          warnings:
+            type: array
+            items:
+              type: string
+            description: List of warnings if any risk factors are detected
+          component_scores:
+            type: object
+            description: Individual component scores for analysis
+          metrics:
+            type: object
+            description: Detailed metrics including token ratios and timing
+          processing_time:
+            type: number
+            format: float
+            description: Processing time in seconds
+
+  SupplyChainRiskRequest:
+    type: object
+    required:
+      - model_name
+    properties:
+      model_name:
+        type: string
+        description: Name of the model to analyze for supply chain risk
+      plugin_sources:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+              description: Name of the plugin
+            origin:
+              type: string
+              description: Origin URL of the plugin
+            license:
+              type: string
+              description: License type of the plugin
+        description: List of plugin sources to analyze
+      dataset_sources:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+              description: Name of the dataset
+            origin:
+              type: string
+              description: Origin URL of the dataset
+            license:
+              type: string
+              description: License type of the dataset
+        description: List of dataset sources to analyze
+  SupplyChainRiskResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (supply_chain_risk_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The supply chain risk score value (0.0 to 1.0)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information including processing time and analysis details
+        properties:
+          processing_time_ms:
+            type: number
+            format: float
+            description: Processing time in milliseconds
+          sources_analyzed:
+            type: integer
+            description: Number of sources analyzed
+          risk_level:
+            type: string
+            description: Risk level classification (low, medium, high)
+          overall_trust_score:
+            type: number
+            format: float
+            description: Overall trust score (0.0 to 1.0)
+          detailed_analyses:
+            type: array
+            items:
+              type: object
+            description: Detailed analysis results for each source
+
+  MembershipInferenceRiskRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: Input text to analyze for membership inference risk
+      context:
+        type: string
+        description: Additional context for the text analysis
+      known_patterns:
+        type: array
+        items:
+          type: string
+        description: Known patterns that may indicate training data membership
+  MembershipInferenceRiskResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (membership_inference_risk_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The membership inference risk score value (0.0 to 1.0)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information including processing time and analysis details
+        properties:
+          explanation:
+            type: string
+            description: Human-readable explanation of the risk assessment
+          processing_time_ms:
+            type: number
+            format: float
+            description: Processing time in milliseconds
+          text_length:
+            type: integer
+            description: Length of the input text
+          perplexity_proxy:
+            type: number
+            format: float
+            description: Perplexity proxy score
+          pattern_detection_score:
+            type: number
+            format: float
+            description: Pattern detection score
+          context_similarity_score:
+            type: number
+            format: float
+            description: Context similarity score
+          memorization_indicators:
+            type: number
+            format: float
+            description: Memorization indicators score
+          component_breakdown:
+            type: object
+            description: Detailed breakdown of analysis components
+
+  ModelLeakageRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: Input text to analyze for model leakage
+      context:
+        type: string
+        description: Additional context for the analysis
+      known_patterns:
+        type: array
+        items:
+          type: string
+        description: Known patterns to check for direct leakage
+  ModelLeakageResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (model_leakage_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The model leakage risk score value (0.0 to 1.0)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information including processing time and analysis details
+        properties:
+          explanation:
+            type: string
+            description: Human-readable explanation of the risk assessment
+          processing_time_ms:
+            type: number
+            format: float
+            description: Processing time in milliseconds
+          text_length:
+            type: integer
+            description: Length of the input text
+          canary_detection:
+            type: number
+            format: float
+            description: Canary string detection score
+          secret_patterns:
+            type: number
+            format: float
+            description: Secret pattern detection score
+          memorization_indicators:
+            type: number
+            format: float
+            description: Memorization indicators score
+          training_data_leakage:
+            type: number
+            format: float
+            description: Training data format leakage score
+          component_breakdown:
+            type: object
+            description: Detailed breakdown of analysis components
+
+  PluginExecutionRiskRequest:
+    type: object
+    required:
+      - text
+    properties:
+      text:
+        type: string
+        description: Code text to analyze for plugin execution risk
+  PluginExecutionRiskResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (plugin_execution_risk_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The plugin execution risk score value (0.0 to 1.0)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information including processing time and analysis details
+        properties:
+          explanation:
+            type: string
+            description: Human-readable explanation of the risk assessment
+          detected_patterns:
+            type: object
+            description: Detected dangerous patterns
+          total_patterns_found:
+            type: integer
+            description: Total number of dangerous patterns found
+          code_lines:
+            type: integer
+            description: Number of lines in the code
+          risk_density:
+            type: number
+            format: float
+            description: Risk density score
+          processing_time_ms:
+            type: number
+            format: float
+            description: Processing time in milliseconds
+
+  AutonomyRiskRequest:
+    type: object
+    required:
+      - llm_output
+    properties:
+      llm_output:
+        type: string
+        description: The LLM output to analyze for autonomy risk
+      context:
+        type: string
+        description: Additional context for the analysis
+      tool_usage_logs:
+        type: array
+        items:
+          type: string
+        description: List of tools used by the LLM
+      chain_of_thought:
+        type: string
+        description: Chain of thought reasoning provided by the LLM
+  AutonomyRiskResponse:
+    type: object
+    properties:
+      metric_name:
+        type: string
+        description: Name of the evaluation metric (autonomy_risk_evaluation)
+      actual_value:
+        type: number
+        format: float
+        description: The autonomy risk score value (0.0 to 1.0)
+      actual_value_type:
+        type: string
+        description: Data type of the actual value (float)
+      others:
+        type: object
+        description: Additional information including processing time and analysis details
+        properties:
+          explanation:
+            type: string
+            description: Human-readable explanation of the risk assessment
+          processing_time_ms:
+            type: number
+            format: float
+            description: Processing time in milliseconds
+          output_length:
+            type: integer
+            description: Length of the LLM output
+          context_length:
+            type: integer
+            description: Length of the context
+          action_depth_score:
+            type: number
+            format: float
+            description: Action depth score
+          tool_complexity_score:
+            type: number
+            format: float
+            description: Tool complexity score
+          oversight_gaps_score:
+            type: number
+            format: float
+            description: Oversight gaps score
+          explainability_gaps_score:
+            type: number
+            format: float
+            description: Explainability gaps score
+          decision_autonomy_score:
+            type: number
+            format: float
+            description: Decision autonomy score
+          component_breakdown:
+            type: object
+            description: Detailed breakdown of analysis components
+
+paths:
+  /atri_raime_ml_services/api/v1/health:
+    get:
+      operationId: healthCheck
+      summary: Health check endpoint
+      description: Check if the service is healthy
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://similarity-production-1018792104281.us-central1.run.app/health
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      responses:
+        '200':
+          description: Service is healthy
+          schema:
+            $ref: '#/definitions/HealthResponse'
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/compute/text-similarity:
+    post:
+      operationId: computeTextSimilarity
+      summary: Compute text similarity
+      description: Compute similarity between source and target texts
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://similarity-production-1018792104281.us-central1.run.app/compute/text-similarity
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/SimilarityRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/SimilarityResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/detect/bias:
+    post:
+      operationId: detectBias
+      summary: Detect bias in text
+      description: Analyze text for political bias using RoBERTa model
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://roberta-production-drnc7zg5yq-uc.a.run.app/detect/bias
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/BiasRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/BiasResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/compute/bleu-score:
+    post:
+      operationId: computeBleuScore
+      summary: Compute BLEU score between reference and predicted texts
+      description: Compute BLEU score between reference and predicted texts
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://nltk-production-drnc7zg5yq-uc.a.run.app/compute/bleu-score
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/BleuScoreRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/BleuScoreResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/detect/coherence:
+    post:
+      operationId: detectCoherence
+      summary: Detect coherence in text
+      description: Analyze text for coherence using Longformer model
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://longformer-production-drnc7zg5yq-uc.a.run.app/detect/coherence
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/LongformerRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/LongformerResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/compute/compression-score:
+    post:
+      summary: Compute compression score between reference and predicted texts
+      description: Calculates the compression ratio between reference and predicted texts
+      operationId: computeCompressionScore
+      security:
+        - api_key: []
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/CompressionScoreRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/CompressionScoreResponse'
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+      x-google-backend:
+        address: https://nltk-production-drnc7zg5yq-uc.a.run.app/compute/compression-score
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+  /atri_raime_ml_services/api/v1/compute/cosine-similarity:
+    post:
+      summary: Compute cosine similarity between reference and predicted texts
+      description: Calculate cosine similarity using Word2Vec embeddings
+      operationId: computeCosineSimilarity
+      security:
+        - api_key: []
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/CosineSimilarityRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/CosineSimilarityResponse'
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+      x-google-backend:
+        address: https://nltk-production-drnc7zg5yq-uc.a.run.app/compute/cosine-similarity
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+  /atri_raime_ml_services/api/v1/compute/fuzzy-score:
+    post:
+      summary: Compute fuzzy score between reference and predicted texts
+      description: Calculate fuzzy score using rapidfuzz for string similarity
+      operationId: computeFuzzyScore
+      security:
+        - api_key: []
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/FuzzyScoreRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/FuzzyScoreResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+      x-google-backend:
+        address: https://nltk-production-drnc7zg5yq-uc.a.run.app/compute/fuzzy-score
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+  /atri_raime_ml_services/api/v1/compute/rouge-score:
+    post:
+      summary: Compute ROUGE score between reference and predicted texts
+      description: Calculate ROUGE score using ROUGE-L metric for text similarity
+      operationId: computeRougeScore
+      security:
+        - api_key: []
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/RougeScoreRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/RougeScoreResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+      x-google-backend:
+        address: https://nltk-production-drnc7zg5yq-uc.a.run.app/compute/rouge-score
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+  /atri_raime_ml_services/api/v1/compute/meteor-score:
+    post:
+      summary: Compute METEOR score between reference and predicted texts
+      description: Calculate METEOR score using METEOR metric for text similarity
+      operationId: computeMeteorScore
+      security:
+        - api_key: []
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/MeteorScoreRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/MeteorScoreResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+      x-google-backend:
+        address: https://nltk-production-drnc7zg5yq-uc.a.run.app/compute/meteor-score
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+  /atri_raime_ml_services/api/v1/detect/toxicity:
+    post:
+      operationId: detectToxicity
+      summary: Detect toxicity in text
+      description: Analyze text for toxicity using BERT Detoxify model
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://bert-detoxify-production-drnc7zg5yq-uc.a.run.app/detect/toxicity
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ToxicityRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/ToxicityResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/detect/hate-speech:
+    post:
+      operationId: detectHateSpeech
+      summary: Detect hate speech in text
+      description: Analyze text for hate speech using BERT Detoxify model
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://bert-detoxify-production-drnc7zg5yq-uc.a.run.app/detect/hate-speech
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/HateSpeechRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/HateSpeechResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/detect/sexual-content:
+    post:
+      operationId: detectSexualContent
+      summary: Detect sexual content in text
+      description: Analyze text for sexual content using BERT Detoxify model
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://bert-detoxify-production-drnc7zg5yq-uc.a.run.app/detect/sexual-content
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/SexualContentRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/SexualContentResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/detect/terrorism:
+    post:
+      operationId: detectTerrorism
+      summary: Detect terrorism content in text
+      description: Analyze text for terrorism-related content using BERT Detoxify model
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://bert-detoxify-production-drnc7zg5yq-uc.a.run.app/detect/terrorism
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/TerrorismRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/TerrorismResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/detect/violence:
+    post:
+      operationId: detectViolence
+      summary: Detect violence content in text
+      description: Analyze text for violence-related content using BERT Detoxify model
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://bert-detoxify-production-drnc7zg5yq-uc.a.run.app/detect/violence
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ViolenceRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/ViolenceResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/detect/self-harm:
+    post:
+      operationId: detectSelfHarm
+      summary: Detect self-harm content in text
+      description: Analyze text for self-harm related content using BERT Detoxify model
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://bert-detoxify-production-drnc7zg5yq-uc.a.run.app/detect/self-harm
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/SelfHarmRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/SelfHarmResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/detect/nsfw:
+    post:
+      operationId: detectNSFW
+      summary: Detect NSFW content in text
+      description: Analyze text for NSFW (Not Safe For Work) content using DistilBERT model
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://distilbert-nsfw-text-classifier-production-drnc7zg5yq-uc.a.run.app/detect/nsfw
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/NSFWRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/NSFWResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/detect/refusal:
+    post:
+      operationId: detectRefusal
+      summary: Detect refusal/rejection patterns in text
+      description: Analyze text for refusal or rejection patterns using DistilRoBERTa model
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://distilroberta-base-rejection-v1-production-drnc7zg5yq-uc.a.run.app/detect/refusal
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/RefusalRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/RefusalResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/detect/creativity:
+    post:
+      operationId: detectCreativity
+      summary: Detect creativity in text
+      description: Analyze text for creativity using ML model
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://bert-base-uncased-production-drnc7zg5yq-uc.a.run.app/detect/creativity
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/CreativityRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/CreativityResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/detect/response_tone:
+    post:
+      operationId: detectResponseTone
+      summary: Detect response tone in text
+      description: Analyze text for emotional tone using advanced language models
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://bertweet-base-production-drnc7zg5yq-uc.a.run.app/detect/response_tone
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/BertweetRequest'
+      responses:
+        '200':
+          description: Response tone analysis results
+          schema:
+            $ref: '#/definitions/BertweetResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/detect/answer_relevance:
+    post:
+      operationId: detectAnswerRelevance
+      summary: Analyze text relationships using DeBERTa v3 Large
+      description: Analyze the relationship between two texts using the DeBERTa v3 Large cross-encoder model
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://deberta-v3-large-production-drnc7zg5yq-uc.a.run.app/detect/answer_relevance
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/AnswerRelevanceRequest'
+      responses:
+        '200':
+          description: Text relationship analysis results using DeBERTa v3 Large
+          schema:
+            $ref: '#/definitions/AnswerRelevanceResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/compute/similarity:
+    post:
+      operationId: computeSimilarity
+      summary: Compute semantic similarity between texts
+      description: Analyze semantic similarity between two texts using sentence transformers
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://sentence-transformers-production-drnc7zg5yq-uc.a.run.app/compute/similarity
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ConceptualSimilarityRequest'
+      responses:
+        '200':
+          description: Semantic similarity analysis results
+          schema:
+            $ref: '#/definitions/ConceptualSimilarityResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/detect/factual_consistency:
+    post:
+      operationId: detectFactualConsistency
+      summary: Analyze factual consistency using Flan-T5
+      description: Analyze factual consistency between text and context using the Flan-T5 model
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://flan-t5-production-drnc7zg5yq-uc.a.run.app/detect/factual_consistency
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/FlanT5Request'
+      responses:
+        '200':
+          description: Factual consistency analysis results
+          schema:
+            $ref: '#/definitions/FlanT5Response'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/detect/data_leakage:
+    post:
+      operationId: detectDataLeakage
+      summary: Detect personal data leakage in text
+      description: Analyze text for potential personal data leakage using token classification
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://token-classification-production-drnc7zg5yq-uc.a.run.app/detect/data_leakage
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/DataLeakageRequest'
+      responses:
+        '200':
+          description: Data leakage analysis results
+          schema:
+            $ref: '#/definitions/DataLeakageResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/detect/prompt_injection:
+    post:
+      operationId: detectPromptInjection
+      summary: Detect prompt injection attempts using DeBERTa v3 Base
+      description: Analyze text for potential prompt injection attacks using DeBERTa v3 base model
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://deberta-v3-base-production-drnc7zg5yq-uc.a.run.app/detect/prompt_injection
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/PromptInjectionRequest'
+      responses:
+        '200':
+          description: Prompt injection analysis results
+          schema:
+            $ref: '#/definitions/PromptInjectionResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/detect/grammar:
+    post:
+      summary: Detect grammatical correctness using T5-Base
+      description: Evaluates the grammatical correctness of text using T5-Base model
+      operationId: detectGrammar
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://t5-base-production-drnc7zg5yq-uc.a.run.app/detect/grammar
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/GrammarRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/GrammarResponse'
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '500':
+          description: Internal server error
+  /atri_raime_ml_services/api/v1/detect/diversity:
+    post:
+      operationId: detectDiversity
+      summary: Detect lexical diversity in text
+      description: Analyze text for lexical diversity using NLTK
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://nltk-production-drnc7zg5yq-uc.a.run.app/detect/diversity
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/DiversityRequest'
+      responses:
+        '200':
+          description: Diversity analysis results
+          schema:
+            $ref: '#/definitions/DiversityResponse'
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+  /atri_raime_ml_services/api/v1/detect/readability:
+    post:
+      operationId: detectReadability
+      summary: Detect readability in text
+      description: Analyze text for readability using NLTK and textstat
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://nltk-production-drnc7zg5yq-uc.a.run.app/detect/readability
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ReadabilityRequest'
+      responses:
+        '200':
+          description: Readability analysis results
+          schema:
+            $ref: '#/definitions/ReadabilityResponse'
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+  /atri_raime_ml_services/api/v1/detect/clarity:
+    post:
+      operationId: detectClarity
+      summary: Detect clarity in text
+      description: Analyze text for clarity using NLTK and heuristics
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://nltk-production-drnc7zg5yq-uc.a.run.app/detect/clarity
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ClarityRequest'
+      responses:
+        '200':
+          description: Clarity analysis results
+          schema:
+            $ref: '#/definitions/ClarityResponse'
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+  /atri_raime_ml_services/api/v1/detect/invisible_text:
+    post:
+      operationId: detectInvisibleText
+      summary: Detect invisible text characters
+      description: Analyze text for invisible and control characters using rule-based detection
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://rule-based-production-drnc7zg5yq-uc.a.run.app/detect/invisible_text
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/InvisibleTextRequest'
+      responses:
+        '200':
+          description: Invisible text analysis results
+          schema:
+            $ref: '#/definitions/InvisibleTextResponse'
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '500':
+          description: Internal server error
+  /atri_raime_ml_services/api/v1/detect/insecure_output:
+    post:
+      operationId: detectInsecureOutput
+      summary: Detect insecure output patterns
+      description: Analyze text for insecure code patterns and vulnerabilities using rule-based detection
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://rule-based-production-drnc7zg5yq-uc.a.run.app/detect/insecure_output
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/InsecureOutputRequest'
+      responses:
+        '200':
+          description: Insecure output analysis results
+          schema:
+            $ref: '#/definitions/InsecureOutputResponse'
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '500':
+          description: Internal server error
+  /atri_raime_ml_services/api/v1/tokenize/sentences:
+    post:
+      operationId: tokenizeSentences
+      summary: Tokenize text into sentences
+      description: Split text into individual sentences using NLTK sentence tokenizer
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://nltk-production-drnc7zg5yq-uc.a.run.app/tokenize/sentences
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/SentenceTokenizeRequest'
+      responses:
+        '200':
+          description: Sentence tokenization results
+          schema:
+            $ref: '#/definitions/SentenceTokenizeResponse'
+        '400':
+          description: Bad request
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/analyze/narrative_flow:
+    post:
+      operationId: analyzeNarrativeFlow
+      summary: Analyze narrative flow and continuity
+      description: Analyze text for narrative flow, logical connectors, and continuity breaks using rule-based analysis
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://rule-based-production-drnc7zg5yq-uc.a.run.app/analyze/narrative_flow
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/NarrativeFlowRequest'
+      responses:
+        '200':
+          description: Narrative flow analysis results
+          schema:
+            $ref: '#/definitions/NarrativeFlowResponse'
+        '400':
+          description: Bad request
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/evaluate/context-precision:
+    post:
+      operationId: evaluateContextPrecision
+      summary: Evaluate context precision for RAG systems
+      description: Measure how relevant the retrieved context is to the given query using semantic similarity analysis
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://sentence-transformers-production-drnc7zg5yq-uc.a.run.app/evaluate/context-precision
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/RAGMetricsRequest'
+      responses:
+        '200':
+          description: Context precision evaluation results
+          schema:
+            $ref: '#/definitions/RAGMetricsResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/evaluate/context-recall:
+    post:
+      operationId: evaluateContextRecall
+      summary: Evaluate context recall for RAG systems
+      description: Measure how well the context covers the information needed to answer the query using semantic coverage analysis
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://sentence-transformers-production-drnc7zg5yq-uc.a.run.app/evaluate/context-recall
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/RAGMetricsRequest'
+      responses:
+        '200':
+          description: Context recall evaluation results
+          schema:
+            $ref: '#/definitions/RAGMetricsResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/evaluate/context-entities-recall:
+    post:
+      operationId: evaluateContextEntitiesRecall
+      summary: Evaluate context entities recall for RAG systems
+      description: Measure how well the context captures important entities from the query and response using named entity recognition
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://sentence-transformers-production-drnc7zg5yq-uc.a.run.app/evaluate/context-entities-recall
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/RAGMetricsRequest'
+      responses:
+        '200':
+          description: Context entities recall evaluation results
+          schema:
+            $ref: '#/definitions/RAGMetricsResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/evaluate/noise-sensitivity:
+    post:
+      operationId: evaluateNoiseSensitivity
+      summary: Evaluate noise sensitivity for RAG systems
+      description: Measure how robust the RAG system is to noise in the context by analyzing relevancy degradation
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://sentence-transformers-production-drnc7zg5yq-uc.a.run.app/evaluate/noise-sensitivity
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/RAGMetricsRequest'
+      responses:
+        '200':
+          description: Noise sensitivity evaluation results
+          schema:
+            $ref: '#/definitions/RAGMetricsResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/evaluate/response-relevancy:
+    post:
+      operationId: evaluateResponseRelevancy
+      summary: Evaluate response relevancy for RAG systems
+      description: Measure how relevant the generated response is to the input query using multi-dimensional similarity analysis
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://sentence-transformers-production-drnc7zg5yq-uc.a.run.app/evaluate/response-relevancy
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/RAGMetricsRequest'
+      responses:
+        '200':
+          description: Response relevancy evaluation results
+          schema:
+            $ref: '#/definitions/RAGMetricsResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/evaluate/context-relevance:
+    post:
+      operationId: evaluateContextRelevance
+      summary: Evaluate context relevance for RAG systems
+      description: Measure how well the context addresses the query's information needs using semantic similarity and aspect coverage analysis
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://sentence-transformers-production-drnc7zg5yq-uc.a.run.app/evaluate/context-relevance
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/RAGMetricsRequest'
+      responses:
+        '200':
+          description: Context relevance evaluation results
+          schema:
+            $ref: '#/definitions/RAGMetricsResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/evaluate/faithfulness:
+    post:
+      operationId: evaluateFaithfulness
+      summary: Evaluate faithfulness using RoBERTa-MNLI
+      description: Measure how faithful the generated response is to the provided context using natural language inference
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://roberta-mnli-production-drnc7zg5yq-uc.a.run.app/evaluate/faithfulness
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/FaithfulnessRequest'
+      responses:
+        '200':
+          description: Faithfulness evaluation results
+          schema:
+            $ref: '#/definitions/FaithfulnessResponse'
+        '400':
+          description: Bad request - Invalid input
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: Unauthorized - Invalid or missing token
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '403':
+          description: Forbidden - Token valid but insufficient permissions
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '429':
+          description: Too many requests - Rate limit exceeded
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/evaluate/tool-call-accuracy:
+    post:
+      operationId: evaluateToolCallAccuracy
+      summary: Evaluate tool call accuracy (rule-based)
+      description: Compare actual vs expected tool usage for accuracy
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://rule-based-production-drnc7zg5yq-uc.a.run.app/evaluate/tool-call-accuracy
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/AgenticMetricsRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/MetricReturnModel'
+        '400':
+          description: Bad request
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/evaluate/plan-coherence:
+    post:
+      operationId: evaluatePlanCoherence
+      summary: Evaluate plan coherence (rule-based)
+      description: Analyze logical flow, repetition, and dependencies in tool usage
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://rule-based-production-drnc7zg5yq-uc.a.run.app/evaluate/plan-coherence
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/AgenticMetricsRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/MetricReturnModel'
+        '400':
+          description: Bad request
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/evaluate/plan-optimality:
+    post:
+      operationId: evaluatePlanOptimality
+      summary: Evaluate plan optimality (rule-based)
+      description: Compare actual plan length to ideal for efficiency
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://rule-based-production-drnc7zg5yq-uc.a.run.app/evaluate/plan-optimality
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/AgenticMetricsRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/MetricReturnModel'
+        '400':
+          description: Bad request
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/evaluate/tool-failure-rate:
+    post:
+      operationId: evaluateToolFailureRate
+      summary: Evaluate tool failure rate (rule-based)
+      description: Analyze tool call results for failure indicators
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://rule-based-production-drnc7zg5yq-uc.a.run.app/evaluate/tool-failure-rate
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/AgenticMetricsRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/MetricReturnModel'
+        '400':
+          description: Bad request
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/evaluate/fallback-rate:
+    post:
+      operationId: evaluateFallbackRate
+      summary: Evaluate fallback rate (rule-based)
+      description: Analyze agent responses for fallback patterns
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://rule-based-production-drnc7zg5yq-uc.a.run.app/evaluate/fallback-rate
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/AgenticMetricsRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/MetricReturnModel'
+        '400':
+          description: Bad request
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/evaluate/agent-goal-accuracy:
+    post:
+      operationId: evaluateAgentGoalAccuracy
+      summary: Evaluate agent goal accuracy (similarity)
+      description: Evaluate if the agent accomplishes the user's goal using semantic similarity
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://similarity-production-drnc7zg5yq-uc.a.run.app/evaluate/agent-goal-accuracy
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/AgenticMetricsRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/MetricReturnModel'
+        '400':
+          description: Bad request
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/evaluate/intent-resolution:
+    post:
+      operationId: evaluateIntentResolution
+      summary: Evaluate intent resolution (similarity)
+      description: Evaluate if the agent correctly identified and acted on user intent
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://similarity-production-drnc7zg5yq-uc.a.run.app/evaluate/intent-resolution
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/AgenticMetricsRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/MetricReturnModel'
+        '400':
+          description: Bad request
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+  /atri_raime_ml_services/api/v1/detect/gender-bias:
+    post:
+      operationId: detectGenderBias
+      summary: Detect gender bias in text (moritzlaurel)
+      description: Detect gender bias using zero-shot classification
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://moritzlaurel-production-drnc7zg5yq-uc.a.run.app/detect/gender-bias
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/BiasRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/MetricReturnModel'
+        '400':
+          description: Bad request
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+
+  /atri_raime_ml_services/api/v1/detect/racial-bias:
+    post:
+      operationId: detectRacialBias
+      summary: Detect racial bias in text (moritzlaurel)
+      description: Detect racial bias using zero-shot classification
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://moritzlaurel-production-drnc7zg5yq-uc.a.run.app/detect/racial-bias
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/BiasRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/MetricReturnModel'
+        '400':
+          description: Bad request
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+
+  /atri_raime_ml_services/api/v1/detect/intersectionality:
+    post:
+      operationId: detectIntersectionality
+      summary: Detect intersectional bias in text (moritzlaurel)
+      description: Detect intersectional bias using zero-shot classification
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://moritzlaurel-production-drnc7zg5yq-uc.a.run.app/detect/intersectionality
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/BiasRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/MetricReturnModel'
+        '400':
+          description: Bad request
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+
+  /atri_raime_ml_services/api/v1/evaluate/topic-adherence:
+    post:
+      operationId: evaluateTopicAdherence
+      summary: Evaluate topic adherence (sentence-transformers)
+      description: Evaluate if the agent stays on topic using semantic similarity
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://sentence-transformers-production-drnc7zg5yq-uc.a.run.app/evaluate/topic-adherence
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/AgenticMetricsRequest'
+      responses:
+        '200':
+          description: Successful response
+          schema:
+            $ref: '#/definitions/MetricReturnModel'
+        '400':
+          description: Bad request
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '500':
+          description: Internal server error
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+
+  /atri_raime_ml_services/api/v1/detect/token-bloat-dos:
+    post:
+      operationId: detectTokenBloatDoS
+      summary: Detect token bloat/DoS risk in text
+      description: Analyze text for token bloat or DoS risk using T5-Base
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://t5-base-production-drnc7zg5yq-uc.a.run.app/detect/token-bloat-dos
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/TokenBloatDoSRequest'
+      responses:
+        '200':
+          description: Token bloat/DoS analysis results
+          schema:
+            $ref: '#/definitions/TokenBloatDoSResponse'
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+
+  /atri_raime_ml_services/api/v1/detect/supply-chain-risk:
+    post:
+      operationId: detectSupplyChainRisk
+      summary: Detect supply chain risk for models/plugins/datasets
+      description: Analyze supply chain risk using Sentence Transformers
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://sentence-transformers-production-drnc7zg5yq-uc.a.run.app/detect/supply-chain-risk
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/SupplyChainRiskRequest'
+      responses:
+        '200':
+          description: Supply chain risk analysis results
+          schema:
+            $ref: '#/definitions/SupplyChainRiskResponse'
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+
+  /atri_raime_ml_services/api/v1/detect/membership-inference-risk:
+    post:
+      operationId: detectMembershipInferenceRisk
+      summary: Detect membership inference risk in text
+      description: Analyze text for membership inference risk using Sentence Transformers
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://sentence-transformers-production-drnc7zg5yq-uc.a.run.app/detect/membership-inference-risk
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/MembershipInferenceRiskRequest'
+      responses:
+        '200':
+          description: Membership inference risk analysis results
+          schema:
+            $ref: '#/definitions/MembershipInferenceRiskResponse'
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+
+  /atri_raime_ml_services/api/v1/detect/model-leakage:
+    post:
+      operationId: detectModelLeakage
+      summary: Detect model leakage in text
+      description: Analyze text for model leakage using rule-based detection
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://rule-based-production-drnc7zg5yq-uc.a.run.app/detect/model-leakage
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/ModelLeakageRequest'
+      responses:
+        '200':
+          description: Model leakage analysis results
+          schema:
+            $ref: '#/definitions/ModelLeakageResponse'
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+
+  /atri_raime_ml_services/api/v1/detect/plugin-execution-risk:
+    post:
+      operationId: detectPluginExecutionRisk
+      summary: Detect plugin execution risk in code
+      description: Analyze code for plugin execution risk using rule-based detection
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://rule-based-production-drnc7zg5yq-uc.a.run.app/detect/plugin-execution-risk
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/PluginExecutionRiskRequest'
+      responses:
+        '200':
+          description: Plugin execution risk analysis results
+          schema:
+            $ref: '#/definitions/PluginExecutionRiskResponse'
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+
+  /atri_raime_ml_services/api/v1/detect/autonomy-risk:
+    post:
+      operationId: detectAutonomyRisk
+      summary: Detect autonomy risk in LLM output
+      description: Analyze LLM output for autonomy risk using rule-based detection
+      security:
+        - api_key: []
+      x-google-backend:
+        address: https://rule-based-production-drnc7zg5yq-uc.a.run.app/detect/autonomy-risk
+        path_translation: CONSTANT_ADDRESS
+        protocol: h2
+        deadline: 30.0
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/AutonomyRiskRequest'
+      responses:
+        '200':
+          description: Autonomy risk analysis results
+          schema:
+            $ref: '#/definitions/AutonomyRiskResponse'
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+

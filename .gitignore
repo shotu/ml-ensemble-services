@@ -1,0 +1,37 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+
+# Virtual envs & env files
+venv/
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+docker-compose*.yml
+
+# Logs
+*.log
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+
+# Model cache
+.cache/
+huggingface/
+
+# Environment
+.env
+*venv/
+.venv/
+venv/
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log

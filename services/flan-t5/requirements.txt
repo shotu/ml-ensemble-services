@@ -1,0 +1,6 @@
+fastapi==0.95.2
+uvicorn[standard]
+transformers==4.41.1
+torch
+pydantic==1.10.13
+requests

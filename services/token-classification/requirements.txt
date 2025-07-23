@@ -1,0 +1,5 @@
+fastapi==0.95.2
+uvicorn[standard]
+transformers
+torch
+requests

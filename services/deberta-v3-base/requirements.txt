@@ -1,0 +1,6 @@
+fastapi==0.95.2
+uvicorn[standard]
+transformers==4.38.2
+torch==2.1.1
+numpy==1.24.4
+requests

@@ -1,0 +1,48 @@
+policies:
+  - displayName: "API Gateway 5xx Errors"
+    conditions:
+      - displayName: "API Gateway 5xx Errors"
+        filter: 'resource.type="api_gateway" AND metric.type="apigateway.googleapis.com/request_count" AND metric.labels.response_code_class="5xx"'
+        threshold:
+          value: 1
+          duration: 300s
+    notificationChannels:
+      - type: email
+        displayName: "API Team Alerts"
+        email: "api-team@atri.ai"
+
+  - displayName: "API Gateway High Latency"
+    conditions:
+      - displayName: "API Gateway High Latency"
+        filter: 'resource.type="api_gateway" AND metric.type="apigateway.googleapis.com/request_latencies"'
+        threshold:
+          value: 5000  # 5 seconds
+          duration: 300s
+    notificationChannels:
+      - type: email
+        displayName: "API Team Alerts"
+        email: "api-team@atri.ai"
+
+  - displayName: "API Gateway Authentication Failures"
+    conditions:
+      - displayName: "API Gateway Auth Failures"
+        filter: 'resource.type="api_gateway" AND metric.type="apigateway.googleapis.com/request_count" AND metric.labels.response_code="401"'
+        threshold:
+          value: 10
+          duration: 300s
+    notificationChannels:
+      - type: email
+        displayName: "Security Team Alerts"
+        email: "security@atri.ai"
+
+  - displayName: "API Gateway Rate Limit Exceeded"
+    conditions:
+      - displayName: "API Gateway Rate Limit"
+        filter: 'resource.type="api_gateway" AND metric.type="apigateway.googleapis.com/request_count" AND metric.labels.response_code="429"'
+        threshold:
+          value: 100
+          duration: 300s
+    notificationChannels:
+      - type: email
+        displayName: "API Team Alerts"
+        email: "api-team@atri.ai" 

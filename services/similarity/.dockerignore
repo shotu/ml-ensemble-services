@@ -1,0 +1,21 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+
+# Version control
+.git
+.gitignore
+
+# Local env
+.env
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Dockerfiles
+docker-compose*.yml
+
+# Logs
+*.log
